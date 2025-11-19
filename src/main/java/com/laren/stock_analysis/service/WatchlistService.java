@@ -14,7 +14,7 @@ public class WatchlistService {
     private final Map<String, Stock> watchlist = new LinkedHashMap<>();
 
     public WatchlistService() {
-        // Some sample data
+        // Optional sample data
         addOrUpdate(new Stock("TCS", "Tata Consultancy Services", "IT Services", 3900.0));
         addOrUpdate(new Stock("INFY", "Infosys", "IT Services", 1500.0));
         addOrUpdate(new Stock("RELIANCE", "Reliance Industries", "Conglomerate", 2800.0));
@@ -22,10 +22,6 @@ public class WatchlistService {
 
     public List<Stock> getAll() {
         return new ArrayList<>(watchlist.values());
-    }
-
-    public Stock getBySymbol(String symbol) {
-        return watchlist.get(symbol.toUpperCase());
     }
 
     public Stock addOrUpdate(Stock stock) {

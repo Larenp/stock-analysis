@@ -2,16 +2,18 @@ import React, { useEffect, useState } from "react";
 
 function Watchlist() {
   const [stocks, setStocks] = useState([]);
-  const [symbol, setSymbol] = useState("");
-  const [name, setName] = useState("");
-  const [sector, setSector] = useState("");
-  const [price, setPrice] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loadingWatchlist, setLoadingWatchlist] = useState(false);
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState("");
+
   const [error, setError] = useState("");
 
   const loadWatchlist = async () => {
     try {
-      setLoading(true);
+      setLoadingWatchlist(true);
       const res = await fetch("http://localhost:8080/api/watchlist");
       if (!res.ok) throw new Error("Failed to load watchlist");
       const data = await res.json();
@@ -20,7 +22,7 @@ function Watchlist() {
       console.error(e);
       setError("Error loading watchlist");
     } finally {
-      setLoading(false);
+      setLoadingWatchlist(false);
     }
   };
 
@@ -28,35 +30,51 @@ function Watchlist() {
     loadWatchlist();
   }, []);
 
-  const handleAdd = async (e) => {
+  const handleSearch = async (e) => {
     e.preventDefault();
-    setError("");
+    setSearchError("");
+    setSearchResults([]);
 
-    if (!symbol || !name) {
-      setError("Symbol and name are required.");
+    if (!searchQuery.trim()) {
+      setSearchError("Type at least one character to search.");
       return;
     }
 
     try {
+      setSearchLoading(true);
+      const params = new URLSearchParams({ query: searchQuery }).toString();
+      const res = await fetch(
+        `http://localhost:8080/api/stocks/search?${params}`
+      );
+      if (!res.ok) throw new Error("Search failed");
+      const data = await res.json();
+      setSearchResults(data);
+    } catch (err) {
+      console.error(err);
+      setSearchError("Error searching stocks");
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const handleAddFromSearch = async (result) => {
+    try {
+      setError("");
       const res = await fetch("http://localhost:8080/api/watchlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          symbol,
-          name,
-          sector,
-          lastPrice: price ? parseFloat(price) : 0,
+          symbol: result.symbol,
+          name: result.name,
+          sector: result.region, // temporary placeholder
+          lastPrice: 0,
         }),
       });
-      if (!res.ok) throw new Error("Failed to add stock");
-      setSymbol("");
-      setName("");
-      setSector("");
-      setPrice("");
+      if (!res.ok) throw new Error("Failed to add to watchlist");
       await loadWatchlist();
     } catch (e) {
       console.error(e);
-      setError("Error adding stock");
+      setError("Error adding stock to watchlist");
     }
   };
 
@@ -74,45 +92,80 @@ function Watchlist() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 px-4 py-8">
-      <div className="max-w-5xl mx-auto space-y-6">
+      <div className="max-w-6xl mx-auto space-y-6">
         <h1 className="text-2xl font-semibold">Watchlist</h1>
 
-        <form
-          onSubmit={handleAdd}
-          className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 grid grid-cols-1 md:grid-cols-5 gap-3"
-        >
-          <input
-            className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-sm"
-            placeholder="Symbol (e.g. TCS)"
-            value={symbol}
-            onChange={(e) => setSymbol(e.target.value)}
-          />
-          <input
-            className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-sm"
-            placeholder="Name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <input
-            className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-sm"
-            placeholder="Sector"
-            value={sector}
-            onChange={(e) => setSector(e.target.value)}
-          />
-          <input
-            type="number"
-            className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-sm"
-            placeholder="Last price"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-          />
-          <button
-            type="submit"
-            className="rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold text-sm"
+        {/* Search section */}
+        <section className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-4">
+          <form
+            onSubmit={handleSearch}
+            className="flex flex-col md:flex-row gap-3"
           >
-            Add / Update
-          </button>
-        </form>
+            <input
+              className="flex-1 rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-sm"
+              placeholder="Search stocks by symbol or name (e.g. INFY, TCS, Apple)"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            <button
+              type="submit"
+              className="rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold text-sm px-4 py-2"
+            >
+              {searchLoading ? "Searching..." : "Search"}
+            </button>
+          </form>
+
+          {searchError && (
+            <p className="text-xs text-red-400 bg-red-950/60 border border-red-800 rounded-md px-3 py-2">
+              {searchError}
+            </p>
+          )}
+
+          <div className="max-h-64 overflow-y-auto border border-slate-800 rounded-lg">
+            {searchLoading ? (
+              <div className="px-4 py-3 text-sm text-slate-400">
+                Searching...
+              </div>
+            ) : searchResults.length === 0 ? (
+              <div className="px-4 py-3 text-sm text-slate-500">
+                No search results yet.
+              </div>
+            ) : (
+              <table className="min-w-full text-xs">
+                <thead className="bg-slate-900 border-b border-slate-800 text-slate-200">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Symbol</th>
+                    <th className="px-3 py-2 text-left">Name</th>
+                    <th className="px-3 py-2 text-left">Region</th>
+                    <th className="px-3 py-2 text-left">Currency</th>
+                    <th className="px-3 py-2 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {searchResults.map((r) => (
+                    <tr
+                      key={r.symbol}
+                      className="border-t border-slate-800 hover:bg-slate-800/60"
+                    >
+                      <td className="px-3 py-2 font-semibold">{r.symbol}</td>
+                      <td className="px-3 py-2">{r.name}</td>
+                      <td className="px-3 py-2">{r.region}</td>
+                      <td className="px-3 py-2">{r.currency}</td>
+                      <td className="px-3 py-2 text-right">
+                        <button
+                          onClick={() => handleAddFromSearch(r)}
+                          className="text-[11px] text-emerald-300 hover:text-emerald-200"
+                        >
+                          + Add to watchlist
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </section>
 
         {error && (
           <p className="text-sm text-red-400 bg-red-950/60 border border-red-800 rounded-md px-3 py-2">
@@ -120,7 +173,11 @@ function Watchlist() {
           </p>
         )}
 
-        <div className="bg-slate-900/80 border border-slate-800 rounded-xl overflow-hidden">
+        {/* Watchlist table */}
+        <section className="bg-slate-900/80 border border-slate-800 rounded-xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-800 text-sm font-semibold">
+            Your watchlist
+          </div>
           <table className="min-w-full text-sm">
             <thead className="bg-slate-900 border-b border-slate-800 text-slate-200">
               <tr>
@@ -132,13 +189,13 @@ function Watchlist() {
               </tr>
             </thead>
             <tbody>
-              {loading ? (
+              {loadingWatchlist ? (
                 <tr>
                   <td
                     colSpan="5"
                     className="px-4 py-4 text-center text-slate-400"
                   >
-                    Loading...
+                    Loading watchlist...
                   </td>
                 </tr>
               ) : stocks.length === 0 ? (
@@ -175,7 +232,7 @@ function Watchlist() {
               )}
             </tbody>
           </table>
-        </div>
+        </section>
       </div>
     </div>
   );
