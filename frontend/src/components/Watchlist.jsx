@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 function Watchlist() {
   const [stocks, setStocks] = useState([]);
@@ -10,6 +11,7 @@ function Watchlist() {
   const [searchError, setSearchError] = useState("");
 
   const [error, setError] = useState("");
+  const [refreshLoading, setRefreshLoading] = useState(false);
 
   const loadWatchlist = async () => {
     try {
@@ -87,6 +89,27 @@ function Watchlist() {
     } catch (e) {
       console.error(e);
       setError("Error removing stock");
+    }
+  };
+
+  const handleRefreshPrices = async () => {
+    try {
+      setRefreshLoading(true);
+      setError("");
+      const res = await fetch(
+        "http://localhost:8080/api/watchlist/refresh-prices",
+        {
+          method: "POST",
+        }
+      );
+      if (!res.ok) throw new Error("Failed to refresh prices");
+      const data = await res.json();
+      setStocks(data);
+    } catch (e) {
+      console.error(e);
+      setError("Error refreshing prices");
+    } finally {
+      setRefreshLoading(false);
     }
   };
 
@@ -175,8 +198,15 @@ function Watchlist() {
 
         {/* Watchlist table */}
         <section className="bg-slate-900/80 border border-slate-800 rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-800 text-sm font-semibold">
-            Your watchlist
+          <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+            <span className="text-sm font-semibold">Your watchlist</span>
+            <button
+              onClick={handleRefreshPrices}
+              className="text-xs rounded-md border border-emerald-500 px-3 py-1 text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-50"
+              disabled={refreshLoading}
+            >
+              {refreshLoading ? "Refreshing..." : "Refresh prices"}
+            </button>
           </div>
           <table className="min-w-full text-sm">
             <thead className="bg-slate-900 border-b border-slate-800 text-slate-200">
@@ -213,7 +243,14 @@ function Watchlist() {
                     key={s.symbol}
                     className="border-t border-slate-800 hover:bg-slate-800/60"
                   >
-                    <td className="px-4 py-2 font-semibold">{s.symbol}</td>
+                    <td className="px-4 py-2 font-semibold">
+                      <Link
+                        to={`/stocks/${s.symbol}`}
+                        className="text-emerald-300 hover:text-emerald-200"
+                      >
+                        {s.symbol}
+                      </Link>
+                    </td>
                     <td className="px-4 py-2">{s.name}</td>
                     <td className="px-4 py-2">{s.sector}</td>
                     <td className="px-4 py-2 text-right">

@@ -6,6 +6,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import com.laren.stock_analysis.dto.DailyPricePoint;
 import java.util.TreeMap;
+import java.math.BigDecimal;
+
 
 
 import java.net.URLEncoder;
@@ -114,6 +116,43 @@ public class AlphaVantageService {
         e.printStackTrace();
         return new ArrayList<>();
     }
+    
 }
+public Double getLatestPrice(String symbol) {
+    try {
+        String encodedSymbol = URLEncoder.encode(symbol, StandardCharsets.UTF_8);
+        String url = "https://www.alphavantage.co/query"
+                + "?function=GLOBAL_QUOTE"
+                + "&symbol=" + encodedSymbol
+                + "&apikey=" + apiKey;
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> response =
+                restTemplate.getForObject(url, Map.class);
+
+        if (response == null) {
+            return null;
+        }
+
+        Object quoteObj = response.get("Global Quote");
+        if (!(quoteObj instanceof Map)) {
+            return null;
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, String> quote = (Map<String, String>) quoteObj;
+
+        String priceStr = quote.get("05. price");
+        if (priceStr == null) {
+            return null;
+        }
+
+        return new BigDecimal(priceStr).doubleValue();
+    } catch (Exception e) {
+        e.printStackTrace();
+        return null;
+    }
+}
+
 
 }

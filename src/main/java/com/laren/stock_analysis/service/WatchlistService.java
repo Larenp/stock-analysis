@@ -12,8 +12,11 @@ import java.util.Map;
 public class WatchlistService {
 
     private final Map<String, Stock> watchlist = new LinkedHashMap<>();
+    private final AlphaVantageService alphaVantageService;
 
-    public WatchlistService() {
+    public WatchlistService(AlphaVantageService alphaVantageService) {
+        this.alphaVantageService = alphaVantageService;
+
         // Optional sample data
         addOrUpdate(new Stock("TCS", "Tata Consultancy Services", "IT Services", 3900.0));
         addOrUpdate(new Stock("INFY", "Infosys", "IT Services", 1500.0));
@@ -32,5 +35,15 @@ public class WatchlistService {
 
     public void remove(String symbol) {
         watchlist.remove(symbol.toUpperCase());
+    }
+
+    public List<Stock> refreshPrices() {
+        for (Stock stock : watchlist.values()) {
+            Double latest = alphaVantageService.getLatestPrice(stock.getSymbol());
+            if (latest != null) {
+                stock.setLastPrice(latest);
+            }
+        }
+        return getAll();
     }
 }
