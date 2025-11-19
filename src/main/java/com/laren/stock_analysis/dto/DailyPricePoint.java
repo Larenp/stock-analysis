@@ -1,7 +1,6 @@
 package com.laren.stock_analysis.dto;
 
 public class DailyPricePoint {
-
     private String date;
     private double close;
 

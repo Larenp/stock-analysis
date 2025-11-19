@@ -1,158 +1,130 @@
+// src/main/java/com/laren/stock_analysis/service/AlphaVantageService.java
 package com.laren.stock_analysis.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.laren.stock_analysis.dto.DailyPricePoint;
 import com.laren.stock_analysis.dto.StockSearchResult;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
-import com.laren.stock_analysis.dto.DailyPricePoint;
-import java.util.TreeMap;
-import java.math.BigDecimal;
 
-
-
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.time.LocalDate;
+import java.util.*;
 
 @Service
 public class AlphaVantageService {
 
     @Value("${alphavantage.api.key}")
-    private String apiKey;
+    private String alphaKey;
 
     private final RestTemplate restTemplate = new RestTemplate();
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public List<StockSearchResult> searchStocks(String keywords) {
+    // === 1. Symbol search (used by StockSearchController) ===
+    public List<StockSearchResult> searchStocks(String query) {
         try {
-            String encoded = URLEncoder.encode(keywords, StandardCharsets.UTF_8);
-            String url = "https://www.alphavantage.co/query"
-                    + "?function=SYMBOL_SEARCH"
-                    + "&keywords=" + encoded
-                    + "&apikey=" + apiKey;
+            String url =
+                    "https://www.alphavantage.co/query" +
+                    "?function=SYMBOL_SEARCH" +
+                    "&keywords=" + query +
+                    "&apikey=" + alphaKey;
 
-            @SuppressWarnings("unchecked")
-            Map<String, Object> response =
-                    restTemplate.getForObject(url, Map.class);
+            String json = restTemplate.getForObject(url, String.class);
+            JsonNode root = objectMapper.readTree(json);
+            JsonNode matches = root.path("bestMatches");
 
-            if (response == null) {
-                return new ArrayList<>();
+            if (!matches.isArray()) {
+                return Collections.emptyList();
             }
-
-            @SuppressWarnings("unchecked")
-            List<Map<String, String>> bestMatches =
-                    (List<Map<String, String>>) response.get("bestMatches");
 
             List<StockSearchResult> results = new ArrayList<>();
-            if (bestMatches == null) {
-                return results;
+            for (JsonNode m : matches) {
+                String symbol = m.path("1. symbol").asText();
+                String name = m.path("2. name").asText();
+                String region = m.path("4. region").asText();
+                results.add(new StockSearchResult(symbol, name, region));
             }
-
-            for (Map<String, String> item : bestMatches) {
-                String symbol = item.get("1. symbol");
-                String name = item.get("2. name");
-                String region = item.get("4. region");
-                String currency = item.get("8. currency");
-                results.add(new StockSearchResult(symbol, name, region, currency));
-            }
-
             return results;
         } catch (Exception e) {
             e.printStackTrace();
-            return new ArrayList<>();
+            return Collections.emptyList();
         }
     }
-    public List<DailyPricePoint> getDailySeries(String symbol, int maxPoints) {
-    try {
-        String encodedSymbol = URLEncoder.encode(symbol, StandardCharsets.UTF_8);
-        String url = "https://www.alphavantage.co/query"
-                + "?function=TIME_SERIES_DAILY"
-                + "&symbol=" + encodedSymbol
-                + "&apikey=" + apiKey;
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> response =
-                restTemplate.getForObject(url, Map.class);
+    // === 2. Latest price (used by WatchlistService) ===
+    public Double getLatestPrice(String symbol) {
+        try {
+            String url =
+                    "https://www.alphavantage.co/query" +
+                    "?function=GLOBAL_QUOTE" +
+                    "&symbol=" + symbol +
+                    "&apikey=" + alphaKey;
 
-        if (response == null) {
-            return new ArrayList<>();
-        }
-
-        Object seriesObj = response.get("Time Series (Daily)");
-        if (!(seriesObj instanceof Map)) {
-            // Could be rate limit or error message; just return empty for now
-            return new ArrayList<>();
-        }
-
-        @SuppressWarnings("unchecked")
-        Map<String, Map<String, String>> series =
-                (Map<String, Map<String, String>>) seriesObj;
-
-        // Sort dates ascending
-        TreeMap<String, Map<String, String>> sorted =
-                new TreeMap<>(series);
-
-        List<DailyPricePoint> points = new ArrayList<>();
-
-        for (Map.Entry<String, Map<String, String>> entry : sorted.entrySet()) {
-            String date = entry.getKey();
-            Map<String, String> values = entry.getValue();
-            String closeStr = values.get("4. close");
-            if (closeStr == null) {
-                continue;
+            String json = restTemplate.getForObject(url, String.class);
+            JsonNode root = objectMapper.readTree(json);
+            JsonNode quote = root.path("Global Quote");
+            if (quote.isMissingNode()) {
+                return null;
             }
-            double close = Double.parseDouble(closeStr);
-            points.add(new DailyPricePoint(date, close));
+            if (!quote.has("05. price")) {
+                return null;
+            }
+            return quote.path("05. price").asDouble();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
         }
-
-        // If maxPoints > 0, only keep the most recent N points
-        if (maxPoints > 0 && points.size() > maxPoints) {
-            return points.subList(points.size() - maxPoints, points.size());
-        }
-
-        return points;
-    } catch (Exception e) {
-        e.printStackTrace();
-        return new ArrayList<>();
     }
-    
-}
-public Double getLatestPrice(String symbol) {
-    try {
-        String encodedSymbol = URLEncoder.encode(symbol, StandardCharsets.UTF_8);
-        String url = "https://www.alphavantage.co/query"
-                + "?function=GLOBAL_QUOTE"
-                + "&symbol=" + encodedSymbol
-                + "&apikey=" + apiKey;
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> response =
-                restTemplate.getForObject(url, Map.class);
+    // === 3. Daily series (used by /api/stocks/{symbol}/daily) ===
+    public List<DailyPricePoint> getDailySeries(String symbol, int limit) {
+        try {
+            String url =
+                    "https://www.alphavantage.co/query" +
+                    "?function=TIME_SERIES_DAILY" +
+                    "&symbol=" + symbol +
+                    "&outputsize=compact" +
+                    "&apikey=" + alphaKey;
 
-        if (response == null) {
-            return null;
+            String json = restTemplate.getForObject(url, String.class);
+
+            // debug logs
+            System.out.println("Raw Alpha response for " + symbol + ": " + json);
+
+            JsonNode root = objectMapper.readTree(json);
+
+            if (root.has("Error Message") || root.has("Note")) {
+                System.out.println("AlphaVantage error/note for " + symbol + ": " + root);
+                return Collections.emptyList();
+            }
+
+            JsonNode series = root.path("Time Series (Daily)");
+            System.out.println("Parsed series node for " + symbol + ": " + series);
+
+            if (series.isMissingNode() || !series.fields().hasNext()) {
+                return Collections.emptyList();
+            }
+
+            List<DailyPricePoint> list = new ArrayList<>();
+            Iterator<String> dates = series.fieldNames();
+
+            while (dates.hasNext()) {
+                String d = dates.next();
+                JsonNode entry = series.get(d);
+                double close = entry.path("4. close").asDouble();
+                list.add(new DailyPricePoint(d, close));
+            }
+
+            list.sort(Comparator.comparing(p -> LocalDate.parse(p.getDate())));
+
+            if (list.size() > limit) {
+                return list.subList(list.size() - limit, list.size());
+            }
+            return list;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Collections.emptyList();
         }
-
-        Object quoteObj = response.get("Global Quote");
-        if (!(quoteObj instanceof Map)) {
-            return null;
-        }
-
-        @SuppressWarnings("unchecked")
-        Map<String, String> quote = (Map<String, String>) quoteObj;
-
-        String priceStr = quote.get("05. price");
-        if (priceStr == null) {
-            return null;
-        }
-
-        return new BigDecimal(priceStr).doubleValue();
-    } catch (Exception e) {
-        e.printStackTrace();
-        return null;
     }
-}
-
-
 }
