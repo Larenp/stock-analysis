@@ -31,6 +31,7 @@ public class StockChatService {
             String url = "https://api.openai.com/v1/chat/completions";
 
             Map<String, Object> body = new HashMap<>();
+            // you can change the model to one that is enabled on your account, e.g. "gpt-4.1-mini"
             body.put("model", "gpt-4o-mini");
 
             List<Map<String, String>> messages = new ArrayList<>();
@@ -89,10 +90,11 @@ public class StockChatService {
             }
 
             return new StockChatResponse(answer.trim());
+
         } catch (Exception e) {
-            e.printStackTrace();
+            e.printStackTrace();  // log full stack trace in the backend console
             return new StockChatResponse(
-                    "There was an error talking to the AI service. Please try again later."
+                    "There was an error talking to the AI service: " + e.getMessage()
             );
         }
     }
