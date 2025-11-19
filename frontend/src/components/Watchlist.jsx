@@ -98,9 +98,7 @@ function Watchlist() {
       setError("");
       const res = await fetch(
         "http://localhost:8080/api/watchlist/refresh-prices",
-        {
-          method: "POST",
-        }
+        { method: "POST" }
       );
       if (!res.ok) throw new Error("Failed to refresh prices");
       const data = await res.json();

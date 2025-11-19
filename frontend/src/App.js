@@ -1,5 +1,7 @@
+// src/App.js
 import React from "react";
 import { Routes, Route } from "react-router-dom";
+
 import Layout from "./components/Layout";
 import Home from "./components/Home";
 import ReturnsCalculator from "./components/ReturnsCalculator";

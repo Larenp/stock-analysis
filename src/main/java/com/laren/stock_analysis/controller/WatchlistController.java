@@ -31,9 +31,9 @@ public class WatchlistController {
     public void remove(@PathVariable String symbol) {
         watchlistService.remove(symbol);
     }
-    @PostMapping("/refresh-prices")
-public List<Stock> refreshPrices() {
-    return watchlistService.refreshPrices();
-}
 
+    @PostMapping("/refresh-prices")
+    public List<Stock> refreshPrices() {
+        return watchlistService.refreshPrices();
+    }
 }
