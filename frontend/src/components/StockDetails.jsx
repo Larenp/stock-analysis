@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
+import StockChatbot from "./StockChatbot";
 
 function StockDetails() {
   const { symbol } = useParams();
@@ -188,16 +189,17 @@ function StockDetails() {
                   axisLine={{ stroke: "#4b5563" }}
                 />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#020617",
-                    border: "1px solid #1f2937",
-                    borderRadius: "0.5rem",
-                    fontSize: "0.75rem",
-                    color: "#e5e7eb",
-                  }}
-                  labelStyle={{ color: "#9ca3af" }}
-                  formatter={(value) => [value.toFixed(2), "Close"]}
-                />
+  contentStyle={{
+    backgroundColor: "#020617",
+    border: "1px solid #1f2937",
+    borderRadius: "0.5rem",
+    fontSize: "0.75rem",
+    color: "#e5e7eb",
+  }}
+  labelStyle={{ color: "#9ca3af" }}
+  formatter={(value) => [value.toFixed(2), "Close"]}
+/>
+
                 <Line
                   type="monotone"
                   dataKey="close"
@@ -249,6 +251,9 @@ function StockDetails() {
             tolerance before making investment decisions.
           </p>
         </section>
+
+        {/* AI chatbot section */}
+        <StockChatbot symbol={symbol.toUpperCase()} />
       </div>
     </div>
   );

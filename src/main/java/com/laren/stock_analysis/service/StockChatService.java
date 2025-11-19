@@ -40,7 +40,7 @@ public class StockChatService {
                     "content",
                     "You are an educational stock analysis assistant. " +
                     "You NEVER give personal investment advice or say to buy/sell. " +
-                    "You do not give exact return percentages."
+                    "You do not give exact return percentages. Explain risks, time horizons, and what to research."
             ));
 
             String userPrompt =
